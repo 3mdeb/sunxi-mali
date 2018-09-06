@@ -232,8 +232,11 @@ int mali_devfreq_init(struct mali_device *mdev)
 	dp->get_cur_freq = mali_devfreq_cur_freq;
 	dp->exit = mali_devfreq_exit;
 
-	if (mali_devfreq_init_freq_table(mdev, dp))
-		return -EFAULT;
+	err = mali_devfreq_init_freq_table(mdev, dp);
+	if (err == -ENODEV)
+		return 0;
+	else
+		return err;
 
 	mdev->devfreq = devfreq_add_device(mdev->dev, dp,
 					   "simple_ondemand", NULL);
@@ -256,21 +259,20 @@ int mali_devfreq_init(struct mali_device *mdev)
 		if (NULL != data.gpu_cooling_ops) {
 			callbacks = data.gpu_cooling_ops;
 			MALI_DEBUG_PRINT(2, ("Mali GPU Thermal: Callback handler installed \n"));
+		} else {
+			MALI_PRINT(("Mali GPU Thermal: No power callbacks\n"));
 		}
 	}
 
-	if (callbacks) {
-		mdev->devfreq_cooling = of_devfreq_cooling_register_power(
-						mdev->dev->of_node,
-						mdev->devfreq,
-						callbacks);
-		if (IS_ERR_OR_NULL(mdev->devfreq_cooling)) {
-			err = PTR_ERR(mdev->devfreq_cooling);
-			MALI_PRINT_ERROR(("Failed to register cooling device (%d)\n", err));
-			goto cooling_failed;
-		} else {
-			MALI_DEBUG_PRINT(2, ("Mali GPU Thermal Cooling installed \n"));
-		}
+	mdev->devfreq_cooling = of_devfreq_cooling_register_power(mdev->dev->of_node,
+								  mdev->devfreq,
+								  callbacks);
+	if (IS_ERR_OR_NULL(mdev->devfreq_cooling)) {
+		err = PTR_ERR(mdev->devfreq_cooling);
+		MALI_PRINT_ERROR(("Failed to register cooling device (%d)\n", err));
+		goto cooling_failed;
+	} else {
+		MALI_DEBUG_PRINT(2, ("Mali GPU Thermal Cooling installed \n"));
 	}
 #endif
 
